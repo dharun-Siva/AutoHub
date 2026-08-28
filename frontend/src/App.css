@@ -697,6 +697,107 @@ button:hover {
   z-index: 1;
 }
 
+.sell-page-main {
+  width: min(100%, 820px);
+  margin: 0 auto;
+  padding: 64px 0 20px;
+}
+
+.sell-page-intro {
+  margin-bottom: 28px;
+}
+
+.sell-page-intro h1 {
+  margin: 14px 0 10px;
+  color: #0f172a;
+  font-size: clamp(2.2rem, 5vw, 3.8rem);
+  letter-spacing: -0.06em;
+}
+
+.sell-page-intro p {
+  margin: 0;
+  color: #475569;
+  line-height: 1.7;
+}
+
+.sell-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 28px;
+  background: rgba(255, 255, 255, 0.84);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 24px;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.06);
+}
+
+.sell-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.sell-form input,
+.sell-form select,
+.sell-form textarea {
+  width: 100%;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 12px;
+  padding: 0.92rem 0.95rem;
+  font: inherit;
+  background: #f3f5f7;
+  color: #0f172a;
+  box-sizing: border-box;
+}
+
+.sell-form textarea {
+  resize: vertical;
+}
+
+.sell-form input:focus,
+.sell-form select:focus,
+.sell-form textarea:focus {
+  outline: 2px solid rgba(71, 85, 105, 0.12);
+  border-color: rgba(71, 85, 105, 0.32);
+  background: #fff;
+}
+
+.sell-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.photo-upload {
+  min-height: 150px;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed rgba(71, 85, 105, 0.35);
+  border-radius: 16px;
+  background: #f8fafc;
+  color: #475569;
+  cursor: pointer;
+}
+
+.photo-upload input {
+  display: none;
+}
+
+.photo-upload img {
+  width: 100%;
+  max-height: 220px;
+  object-fit: cover;
+  border-radius: 12px;
+}
+
+.sell-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
 .category-page-top {
   margin-bottom: 24px;
   text-align: center;
@@ -807,6 +908,14 @@ button:hover {
   position: relative;
   height: 200px;
   background: linear-gradient(135deg, rgba(59, 130, 246, 0.11), rgba(249, 115, 22, 0.12));
+}
+
+.listing-image img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .listing-image::before {
@@ -986,6 +1095,22 @@ button:hover {
 
   .hero-copy h1 {
     font-size: 2.6rem;
+  }
+
+  .sell-page-main {
+    padding-top: 40px;
+  }
+
+  .sell-form {
+    padding: 20px;
+  }
+
+  .sell-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .sell-form-actions {
+    flex-direction: column-reverse;
   }
 
   .card-one,

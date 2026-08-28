@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Route, Routes, Link, useLocation, useParams } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes, Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import './App.css'
 
@@ -56,6 +56,14 @@ const vehicleCatalog = {
   'more-vehicles': [],
 }
 
+function getStoredUser() {
+  try {
+    return JSON.parse(localStorage.getItem('autohub-user') || 'null')
+  } catch {
+    return null
+  }
+}
+
 function App() {
   return (
     <BrowserRouter>
@@ -85,6 +93,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/" element={<HomePage />} />
+      <Route path="/sell" element={<SellPage />} />
       <Route path="/vehicles/:category" element={<CategoryPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
@@ -98,6 +107,7 @@ function AppHeader({
   onLoginClick = () => {},
   onToggleUserMenu = () => {},
   onLogout = () => {},
+  onSellClick = () => {},
 }) {
   const displayName = user?.name ? user.name.trim() : 'User'
   const initial = displayName.charAt(0).toUpperCase() || 'U'
@@ -140,7 +150,7 @@ function AppHeader({
             Login
           </button>
         )}
-        <button type="button" className="primary-btn">Sell Now</button>
+        <button type="button" className="primary-btn" onClick={onSellClick}>Sell Now</button>
       </div>
     </header>
   )
@@ -148,8 +158,8 @@ function AppHeader({
 
 function HomePage() {
   const [isLoginOpen, setIsLoginOpen] = useState(false)
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
-  const [loggedInUser, setLoggedInUser] = useState(null)
+  const [loggedInUser, setLoggedInUser] = useState(getStoredUser)
+  const [isLoggedIn, setIsLoggedIn] = useState(() => Boolean(getStoredUser()))
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [formMode, setFormMode] = useState('login')
   const [formData, setFormData] = useState({
@@ -161,6 +171,9 @@ function HomePage() {
   })
   const [errorMessage, setErrorMessage] = useState('')
   const [missingFields, setMissingFields] = useState([])
+  const [storedListings, setStoredListings] = useState([])
+  const [pendingSell, setPendingSell] = useState(false)
+  const navigate = useNavigate()
 
   useEffect(() => {
     document.body.style.overflow = isLoginOpen ? 'hidden' : ''
@@ -303,8 +316,13 @@ function HomePage() {
 
       setIsLoggedIn(true)
       setLoggedInUser(userData)
+      localStorage.setItem('autohub-user', JSON.stringify(userData))
       setShowUserMenu(false)
       setIsLoginOpen(false)
+      if (pendingSell) {
+        setPendingSell(false)
+        navigate('/sell')
+      }
       setFormData({
         name: '',
         password: '',
@@ -330,7 +348,26 @@ function HomePage() {
       district: '',
     })
     setErrorMessage('')
+    localStorage.removeItem('autohub-user')
   }
+
+  const handleSellClick = () => {
+    if (isLoggedIn) {
+      navigate('/sell')
+      return
+    }
+
+    setPendingSell(true)
+    setFormMode('login')
+    setIsLoginOpen(true)
+  }
+
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/api/listings`)
+      .then((response) => response.json())
+      .then((data) => setStoredListings(data.listings || []))
+      .catch(() => setStoredListings([]))
+  }, [])
 
   return (
     <div className="app-shell">
@@ -467,6 +504,7 @@ function HomePage() {
         onLoginClick={() => setIsLoginOpen(true)}
         onToggleUserMenu={() => setShowUserMenu((prev) => !prev)}
         onLogout={handleLogout}
+        onSellClick={handleSellClick}
       />
 
       <main>
@@ -552,9 +590,10 @@ function HomePage() {
           </div>
 
           <div className="listing-grid">
-            {featuredListings.map((listing) => (
+            {[...storedListings, ...featuredListings].map((listing) => (
               <article className="listing-card" key={listing.title}>
                 <div className="listing-image">
+                  {listing.images?.[0] && <img src={`${API_BASE_URL}${listing.images[0]}`} alt={listing.title} />}
                   <span className="listing-badge">{listing.tag}</span>
                 </div>
                 <div className="listing-body">
@@ -565,7 +604,7 @@ function HomePage() {
                     </div>
                     <strong>{listing.price}</strong>
                   </div>
-                  <p className="listing-meta">{listing.meta}</p>
+                  <p className="listing-meta">{listing.description || listing.meta || `${listing.location} • Contact seller for details`}</p>
                   <Link to="/vehicles/cars" className="primary-btn small">Details</Link>
                 </div>
               </article>
@@ -596,8 +635,93 @@ function HomePage() {
           <p className="brand-name footer-brand">AutoHub</p>
           <span className="brand-tag">Seller → AutoHub → Buyer</span>
         </div>
-        <Link to="/vehicles/cars" className="primary-btn">Start selling</Link>
+        <button type="button" className="primary-btn" onClick={handleSellClick}>Start selling</button>
       </footer>
+    </div>
+  )
+}
+
+function SellPage() {
+  const navigate = useNavigate()
+  const storedUser = getStoredUser()
+  const [formData, setFormData] = useState({ title: '', price: '', category: 'Cars', location: '', contact: '', description: '' })
+  const [images, setImages] = useState([])
+  const [errorMessage, setErrorMessage] = useState('')
+
+  useEffect(() => {
+    if (!localStorage.getItem('autohub-user')) {
+      navigate('/', { replace: true })
+    }
+  }, [navigate])
+
+  const handleInputChange = (event) => {
+    const { name, value } = event.target
+    setFormData((previous) => ({ ...previous, [name]: value }))
+    setErrorMessage('')
+  }
+
+  const handleImageChange = (event) => {
+    const files = Array.from(event.target.files || [])
+    Promise.all(files.map((file) => new Promise((resolve) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(reader.result)
+      reader.readAsDataURL(file)
+    }))).then(setImages)
+  }
+
+  const handleSubmit = async (event) => {
+    event.preventDefault()
+    const requiredFields = ['title', 'price', 'category', 'location', 'contact', 'description']
+    if (requiredFields.some((field) => !formData[field].trim())) {
+      setErrorMessage('Please complete all listing details.')
+      return
+    }
+
+    const storedUser = getStoredUser()
+    const payload = new FormData()
+    payload.append('seller_id', storedUser.id)
+    Object.entries(formData).forEach(([key, value]) => payload.append(key, value))
+
+    const imageFiles = Array.from(event.target.elements.photos?.files || [])
+    imageFiles.forEach((file) => payload.append('photos', file))
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/listings`, { method: 'POST', body: payload })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.detail || 'Unable to publish listing.')
+      navigate('/#featured')
+    } catch (error) {
+      setErrorMessage(error.message)
+    }
+  }
+
+  return (
+    <div className="category-page-shell">
+      <AppHeader isLoggedIn={Boolean(storedUser)} user={storedUser} onSellClick={() => {}} />
+      <main className="sell-page-main">
+        <div className="sell-page-intro">
+          <span className="eyebrow">Seller workspace</span>
+          <h1>List your vehicle</h1>
+          <p>Share the details buyers need to make a confident decision.</p>
+        </div>
+        <form className="sell-form" onSubmit={handleSubmit}>
+          {errorMessage && <p className="form-error">{errorMessage}</p>}
+          <label className="photo-upload">
+            <span>Vehicle photo</span>
+            <input name="photos" type="file" accept="image/*" multiple onChange={handleImageChange} />
+            {images.length > 0 ? <img src={images[0]} alt="Selected vehicle preview" /> : <strong>Choose vehicle photos</strong>}
+          </label>
+          <div className="sell-form-grid">
+            <label><span>Title</span><input name="title" value={formData.title} onChange={handleInputChange} placeholder="e.g. 2022 Hyundai Creta" /></label>
+            <label><span>Price (₹)</span><input name="price" type="number" min="0" value={formData.price} onChange={handleInputChange} placeholder="Enter asking price" /></label>
+            <label><span>Category</span><select name="category" value={formData.category} onChange={handleInputChange}>{categories.map((category) => <option key={category.slug}>{category.label}</option>)}</select></label>
+            <label><span>Location</span><input name="location" value={formData.location} onChange={handleInputChange} placeholder="City or district" /></label>
+            <label><span>Contact number</span><input name="contact" inputMode="numeric" value={formData.contact} onChange={handleInputChange} placeholder="10-digit mobile number" /></label>
+          </div>
+          <label><span>Description</span><textarea name="description" rows="5" value={formData.description} onChange={handleInputChange} placeholder="Tell buyers about condition, ownership, and key details" /></label>
+          <div className="sell-form-actions"><button type="button" className="secondary-btn" onClick={() => navigate('/')}>Cancel</button><button type="submit" className="primary-btn">Publish listing</button></div>
+        </form>
+      </main>
     </div>
   )
 }

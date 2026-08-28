@@ -1,17 +1,19 @@
 import os
+import uuid
 from datetime import datetime
+from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from passlib.context import CryptContext
 from pydantic import BaseModel, Field, field_validator
-from sqlalchemy import Boolean, Column, DateTime, Integer, String, create_engine
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text, create_engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 DATABASE_URL = os.getenv(
     'DATABASE_URL',
     'postgresql+psycopg://postgres:dharunsiva%401@localhost:5432/AutoHub',
-    
 )
 
 pwd_context = CryptContext(schemes=['bcrypt'], deprecated='auto')
@@ -32,6 +34,28 @@ class User(Base):
     district = Column(String(80), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     is_active = Column(Boolean, default=True)
+
+
+class Listing(Base):
+    __tablename__ = 'listings'
+
+    id = Column(Integer, primary_key=True, index=True)
+    seller_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    title = Column(String(160), nullable=False)
+    price = Column(Integer, nullable=False)
+    category = Column(String(80), nullable=False)
+    location = Column(String(120), nullable=False)
+    contact = Column(String(20), nullable=False)
+    description = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class ListingPhoto(Base):
+    __tablename__ = 'listing_photos'
+
+    id = Column(Integer, primary_key=True, index=True)
+    listing_id = Column(Integer, ForeignKey('listings.id', ondelete='CASCADE'), nullable=False)
+    path = Column(String(255), nullable=False)
 
 
 engine = create_engine(DATABASE_URL, pool_pre_ping=True)
@@ -80,6 +104,9 @@ class LoginRequest(BaseModel):
 
 
 app = FastAPI(title='AutoHub API', version='1.0.0')
+UPLOADS_DIR = Path(__file__).resolve().parent.parent / 'uploads'
+UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+app.mount('/uploads', StaticFiles(directory=UPLOADS_DIR), name='uploads')
 
 app.add_middleware(
     CORSMiddleware,
@@ -102,8 +129,24 @@ def health_check():
 
 @app.get('/api/listings')
 def get_listings():
-    return {
-        'listings': [
+    db: Session = SessionLocal()
+    try:
+        saved_listings = db.query(Listing).order_by(Listing.created_at.desc()).all()
+        listings = [
+            {
+                'id': listing.id,
+                'title': listing.title,
+                'type': listing.category,
+                'price': listing.price,
+                'location': listing.location,
+                'contact': listing.contact,
+                'description': listing.description,
+                'images': [f'/uploads/{photo.path}' for photo in db.query(ListingPhoto).filter(ListingPhoto.listing_id == listing.id).all()],
+            }
+            for listing in saved_listings
+        ]
+        return {
+        'listings': listings + [
             {
                 'id': 1,
                 'title': '2022 Toyota Camry',
@@ -137,8 +180,68 @@ def get_listings():
                 'fuel': 'Diesel',
                 'condition': 'Verified',
             },
-        ]
-    }
+        ]}
+    finally:
+        db.close()
+
+
+@app.post('/api/listings')
+async def create_listing(
+    seller_id: int = Form(...),
+    title: str = Form(...),
+    price: int = Form(...),
+    category: str = Form(...),
+    location: str = Form(...),
+    contact: str = Form(...),
+    description: str = Form(...),
+    photos: list[UploadFile] = File(default=[]),
+):
+    if not all(value.strip() for value in [title, category, location, contact, description]):
+        raise HTTPException(status_code=422, detail='All listing fields are required.')
+    if price < 0:
+        raise HTTPException(status_code=422, detail='Price cannot be negative.')
+
+    db: Session = SessionLocal()
+    saved_files = []
+    try:
+        if not db.query(User).filter(User.id == seller_id).first():
+            raise HTTPException(status_code=404, detail='Seller account not found.')
+
+        listing = Listing(
+            seller_id=seller_id,
+            title=title.strip(),
+            price=price,
+            category=category.strip(),
+            location=location.strip(),
+            contact=contact.strip(),
+            description=description.strip(),
+        )
+        db.add(listing)
+        db.flush()
+
+        for photo in photos:
+            if not photo.content_type or not photo.content_type.startswith('image/'):
+                raise HTTPException(status_code=422, detail='Only image files are allowed.')
+            filename = f'{uuid.uuid4().hex}{Path(photo.filename or "image").suffix.lower()}'
+            destination = UPLOADS_DIR / filename
+            destination.write_bytes(await photo.read())
+            saved_files.append(destination)
+            db.add(ListingPhoto(listing_id=listing.id, path=filename))
+
+        db.commit()
+        return {'status': 'success', 'listing': {'id': listing.id, 'title': listing.title}}
+    except HTTPException:
+        db.rollback()
+        for file_path in saved_files:
+            file_path.unlink(missing_ok=True)
+        raise
+    except Exception as exc:
+        db.rollback()
+        for file_path in saved_files:
+            file_path.unlink(missing_ok=True)
+        raise HTTPException(status_code=500, detail=f'Unable to create listing: {exc}') from exc
+    finally:
+        db.close()
 
 
 @app.post('/api/signup')

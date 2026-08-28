@@ -28,11 +28,15 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 ## Database
 
-```bash
-docker compose up -d db
+The backend expects a local PostgreSQL server on port 5432 by default, using the `AutoHub` database. Set the `DATABASE_URL` environment variable if your local PostgreSQL username, password, or database name is different.
+
+```powershell
+$env:DATABASE_URL = 'postgresql+psycopg://postgres:YOUR_PASSWORD@localhost:5432/AutoHub'
 ```
 
-This starts PostgreSQL on port 5432.
+## Listings and photos
+
+Published listings are stored in PostgreSQL. Uploaded vehicle photos are saved in `backend/uploads/`, while their file paths are stored in the database. The backend creates the required tables automatically at startup.
 
 ## Default environment
 
