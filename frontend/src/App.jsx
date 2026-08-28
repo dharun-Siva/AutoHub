@@ -1,22 +1,18 @@
-import { useState } from 'react'
+import { BrowserRouter, Navigate, Route, Routes, Link, useLocation, useParams } from 'react-router-dom'
+import { useEffect, useState } from 'react'
 import './App.css'
 
-const categories = [
-  { icon: '🚗', label: 'Cars' },
-  { icon: '🏍️', label: 'Bikes' },
-  { icon: '🛺', label: 'Auto Rickshaws' },
-  { icon: '🚐', label: 'Vans' },
-  { icon: '🚚', label: 'Trucks' },
-  { icon: '🚌', label: 'Buses' },
-  { icon: '🚜', label: 'Commercial' },
-  { icon: '🚘', label: 'More Vehicles' },
-]
+const API_BASE_URL = 'http://localhost:8000'
 
-const stats = [
-  { value: '25k+', label: 'Verified listings' },
-  { value: '4.9/5', label: 'Seller rating' },
-  { value: '120+', label: 'Cities covered' },
-  { value: '24/7', label: 'Buyer support' },
+const categories = [
+  { icon: '🚗', label: 'Cars', slug: 'cars' },
+  { icon: '🏍️', label: 'Bikes', slug: 'bikes' },
+  { icon: '🛺', label: 'Auto Rickshaws', slug: 'auto-rickshaws' },
+  { icon: '🚐', label: 'Vans', slug: 'vans' },
+  { icon: '🚚', label: 'Trucks', slug: 'trucks' },
+  { icon: '🚌', label: 'Buses', slug: 'buses' },
+  { icon: '🚜', label: 'Commercial', slug: 'commercial' },
+  { icon: '🚘', label: 'More Vehicles', slug: 'more-vehicles' },
 ]
 
 const featuredListings = [
@@ -49,9 +45,112 @@ const steps = [
   { number: '03', title: 'Close the deal', text: 'Negotiate safely, verify documents, and complete your transaction with confidence.' },
 ]
 
+const vehicleCatalog = {
+  cars: [],
+  bikes: [],
+  'auto-rickshaws': [],
+  vans: [],
+  trucks: [],
+  buses: [],
+  commercial: [],
+  'more-vehicles': [],
+}
+
 function App() {
+  return (
+    <BrowserRouter>
+      <AppRoutes />
+    </BrowserRouter>
+  )
+}
+
+function AppRoutes() {
+  const location = useLocation()
+
+  useEffect(() => {
+    if (!location.hash) {
+      return
+    }
+
+    const sectionId = location.hash.replace('#', '')
+    const target = document.getElementById(sectionId)
+
+    if (target) {
+      requestAnimationFrame(() => {
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      })
+    }
+  }, [location])
+
+  return (
+    <Routes>
+      <Route path="/" element={<HomePage />} />
+      <Route path="/vehicles/:category" element={<CategoryPage />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  )
+}
+
+function AppHeader({
+  isLoggedIn = false,
+  user = null,
+  showUserMenu = false,
+  onLoginClick = () => {},
+  onToggleUserMenu = () => {},
+  onLogout = () => {},
+}) {
+  const displayName = user?.name ? user.name.trim() : 'User'
+  const initial = displayName.charAt(0).toUpperCase() || 'U'
+
+  return (
+    <header className="topbar">
+      <div className="brand-wrap">
+        <div className="brand-mark">DS</div>
+        <div>
+          <p className="brand-name">AutoHub</p>
+          <span className="brand-tag">Buy. Sell. Drive.</span>
+        </div>
+      </div>
+
+      <nav className="main-nav" aria-label="Main navigation">
+        <Link to="/#marketplace">Marketplace</Link>
+        <Link to="/#how-it-works">How it works</Link>
+        <Link to="/#featured">Featured</Link>
+        <Link to="/#pricing">Pricing</Link>
+      </nav>
+
+      <div className="nav-actions">
+        {isLoggedIn ? (
+          <div className="user-menu-wrap">
+            <button type="button" className="user-badge" onClick={onToggleUserMenu}>
+              <span className="user-avatar">{initial}</span>
+              <span>{displayName}</span>
+            </button>
+
+            {showUserMenu && (
+              <div className="user-dropdown">
+                <button type="button" className="dropdown-item" onClick={onLogout}>
+                  Logout
+                </button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <button type="button" className="ghost-btn" onClick={onLoginClick}>
+            Login
+          </button>
+        )}
+        <button type="button" className="primary-btn">Sell Now</button>
+      </div>
+    </header>
+  )
+}
+
+function HomePage() {
   const [isLoginOpen, setIsLoginOpen] = useState(false)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [loggedInUser, setLoggedInUser] = useState(null)
+  const [showUserMenu, setShowUserMenu] = useState(false)
   const [formMode, setFormMode] = useState('login')
   const [formData, setFormData] = useState({
     name: '',
@@ -60,25 +159,169 @@ function App() {
     role: 'buyer',
     district: '',
   })
+  const [errorMessage, setErrorMessage] = useState('')
+  const [missingFields, setMissingFields] = useState([])
+
+  useEffect(() => {
+    document.body.style.overflow = isLoginOpen ? 'hidden' : ''
+
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [isLoginOpen])
+
+  useEffect(() => {
+    const handleOutsideClick = (event) => {
+      if (!event.target.closest('.user-menu-wrap')) {
+        setShowUserMenu(false)
+      }
+    }
+
+    document.addEventListener('click', handleOutsideClick)
+
+    return () => {
+      document.removeEventListener('click', handleOutsideClick)
+    }
+  }, [])
 
   const handleInputChange = (event) => {
     const { name, value } = event.target
-    setFormData((prev) => ({ ...prev, [name]: value }))
-  }
 
-  const handleLoginSubmit = (event) => {
-    event.preventDefault()
+    if (name === 'mobile') {
+      const onlyDigits = value.replace(/\D/g, '').slice(0, 10)
 
-    if (formMode === 'signup') {
-      if (!formData.name || !formData.password || !formData.mobile || !formData.district) {
-        return
+      if (value !== onlyDigits) {
+        setErrorMessage('Mobile number should contain only numbers.')
+      } else {
+        setErrorMessage('')
       }
-    } else if (!formData.name || !formData.password) {
+
+      setFormData((prev) => ({ ...prev, mobile: onlyDigits }))
+      setMissingFields((prev) => prev.filter((field) => field !== name))
       return
     }
 
-    setIsLoggedIn(true)
-    setIsLoginOpen(false)
+    setFormData((prev) => ({ ...prev, [name]: value }))
+    setMissingFields((prev) => prev.filter((field) => field !== name))
+    setErrorMessage('')
+  }
+
+  const getReadableErrorMessage = (detail) => {
+    if (!detail) return 'Something went wrong. Please try again.'
+
+    if (typeof detail === 'string') return detail
+
+    if (Array.isArray(detail)) {
+      const firstError = detail[0]
+      if (firstError && typeof firstError === 'object') {
+        const field = Array.isArray(firstError.loc) ? firstError.loc[firstError.loc.length - 1] : null
+        const message = firstError.msg || ''
+
+        if (field === 'mobile') {
+          if (message.includes('at least')) return 'Mobile number must have at least 10 characters.'
+          if (message.toLowerCase().includes('field required')) return 'Please enter your mobile number.'
+          return 'Please enter a valid mobile number.'
+        }
+
+        if (field === 'password') {
+          if (message.includes('at least')) return 'Password must have at least 6 characters.'
+          if (message.toLowerCase().includes('field required')) return 'Please enter your password.'
+          return 'Please enter a valid password.'
+        }
+
+        if (field === 'name') {
+          return 'Please enter your name.'
+        }
+
+        if (field === 'district') {
+          return 'Please enter your district.'
+        }
+
+        if (firstError.msg) return firstError.msg
+        if (firstError.error) return firstError.error
+      }
+      return detail.map((item) => (typeof item === 'string' ? item : item?.msg || item?.error || 'Invalid input')).join(', ')
+    }
+
+    if (typeof detail === 'object') {
+      if (detail.msg) return detail.msg
+      if (detail.error) return detail.error
+      if (detail.message) return detail.message
+    }
+
+    return 'Please check your details and try again.'
+  }
+
+  const handleLoginSubmit = async (event) => {
+    event.preventDefault()
+
+    const requiredFields = formMode === 'signup'
+      ? ['name', 'mobile', 'district', 'password']
+      : ['mobile', 'password']
+
+    const nextMissingFields = requiredFields.filter((field) => !String(formData[field] || '').trim())
+
+    if (nextMissingFields.length > 0) {
+      setMissingFields(nextMissingFields)
+      setErrorMessage('Please enter all required fields.')
+      return
+    }
+
+    setMissingFields([])
+    setErrorMessage('')
+
+    try {
+      const endpoint = formMode === 'signup' ? '/api/signup' : '/api/login'
+      const payload = formMode === 'signup'
+        ? {
+            name: formData.name,
+            mobile: formData.mobile,
+            password: formData.password,
+            role: formData.role,
+            district: formData.district,
+          }
+        : {
+            mobile: formData.mobile,
+            password: formData.password,
+          }
+
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(getReadableErrorMessage(data.detail))
+      }
+
+      const userData = data.user || null
+
+      setIsLoggedIn(true)
+      setLoggedInUser(userData)
+      setShowUserMenu(false)
+      setIsLoginOpen(false)
+      setFormData({
+        name: '',
+        password: '',
+        mobile: '',
+        role: 'buyer',
+        district: '',
+      })
+    } catch (error) {
+      const message = error && error.message ? error.message : 'Unable to process your request.'
+      setErrorMessage(message)
+    }
+  }
+
+  const handleLogout = () => {
+    setIsLoggedIn(false)
+    setLoggedInUser(null)
+    setShowUserMenu(false)
     setFormData({
       name: '',
       password: '',
@@ -86,41 +329,34 @@ function App() {
       role: 'buyer',
       district: '',
     })
+    setErrorMessage('')
   }
 
   return (
     <div className="app-shell">
+      <div className="page-watermark" aria-hidden="true">DS AutoHub</div>
+
       {isLoginOpen && (
         <div className="modal-overlay" onClick={() => setIsLoginOpen(false)}>
           <div className="login-modal" onClick={(event) => event.stopPropagation()}>
             <div className="modal-header">
-              <div>
-                <p className="modal-kicker">Welcome to AutoHub</p>
-                <h3>{formMode === 'login' ? 'Login to continue' : 'Create your account'}</h3>
+              <div className="auth-brand-row">
+                <div className="mini-brand">DS</div>
+                <span>AutoHub</span>
               </div>
               <button type="button" className="close-btn" onClick={() => setIsLoginOpen(false)} aria-label="Close login modal">
                 ×
               </button>
             </div>
 
-            <div className="mode-switch">
-              <button
-                type="button"
-                className={formMode === 'login' ? 'mode-btn active' : 'mode-btn'}
-                onClick={() => setFormMode('login')}
-              >
-                Login
-              </button>
-              <button
-                type="button"
-                className={formMode === 'signup' ? 'mode-btn active' : 'mode-btn'}
-                onClick={() => setFormMode('signup')}
-              >
-                Sign up
-              </button>
+            <div className="auth-intro">
+              <p className="modal-kicker">{formMode === 'login' ? 'Welcome back' : 'Create account'}</p>
+              <h3>{formMode === 'login' ? 'Login to continue' : 'Join AutoHub'}</h3>
             </div>
 
             <form className="auth-form" onSubmit={handleLoginSubmit}>
+              {errorMessage && <p className="form-error">{errorMessage}</p>}
+
               {formMode === 'signup' && (
                 <>
                   <label>
@@ -130,7 +366,8 @@ function App() {
                       name="name"
                       value={formData.name}
                       onChange={handleInputChange}
-                      placeholder="Enter your name"
+                      placeholder={missingFields.includes('name') ? 'Please enter your name' : 'Enter your name'}
+                      className={missingFields.includes('name') ? 'invalid-field' : ''}
                     />
                   </label>
 
@@ -139,9 +376,12 @@ function App() {
                     <input
                       type="tel"
                       name="mobile"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                       value={formData.mobile}
                       onChange={handleInputChange}
-                      placeholder="+91 98765 43210"
+                      placeholder={missingFields.includes('mobile') ? 'Please enter mobile number' : '+91 98765 43210'}
+                      className={missingFields.includes('mobile') ? 'invalid-field' : ''}
                     />
                   </label>
 
@@ -155,16 +395,33 @@ function App() {
                 </>
               )}
 
-              <label>
-                <span>District</span>
-                <input
-                  type="text"
-                  name="district"
-                  value={formData.district}
-                  onChange={handleInputChange}
-                  placeholder="Enter your district"
-                />
-              </label>
+              {formMode === 'login' ? (
+                <label>
+                  <span>Mobile number</span>
+                  <input
+                    type="tel"
+                    name="mobile"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={formData.mobile}
+                    onChange={handleInputChange}
+                    placeholder={missingFields.includes('mobile') ? 'Please enter mobile number' : 'Enter your mobile number'}
+                    className={missingFields.includes('mobile') ? 'invalid-field' : ''}
+                  />
+                </label>
+              ) : (
+                <label>
+                  <span>District</span>
+                  <input
+                    type="text"
+                    name="district"
+                    value={formData.district}
+                    onChange={handleInputChange}
+                    placeholder={missingFields.includes('district') ? 'Please enter your district' : 'Enter your district'}
+                    className={missingFields.includes('district') ? 'invalid-field' : ''}
+                  />
+                </label>
+              )}
 
               <label>
                 <span>Password</span>
@@ -173,48 +430,44 @@ function App() {
                   name="password"
                   value={formData.password}
                   onChange={handleInputChange}
-                  placeholder="Enter your password"
+                  placeholder={missingFields.includes('password') ? 'Please enter your password' : 'Enter your password'}
+                  className={missingFields.includes('password') ? 'invalid-field' : ''}
                 />
               </label>
+
+              {formMode === 'login' && (
+                <button type="button" className="link-btn">
+                  Forgot password?
+                </button>
+              )}
 
               <button type="submit" className="primary-btn auth-submit">
                 {formMode === 'login' ? 'Login' : 'Create account'}
               </button>
+
+              <div className="auth-footer">
+                <span>{formMode === 'login' ? 'New user?' : 'Already have an account?'}</span>
+                <button
+                  type="button"
+                  className="text-btn"
+                  onClick={() => setFormMode(formMode === 'login' ? 'signup' : 'login')}
+                >
+                  {formMode === 'login' ? 'Create account' : 'Login'}
+                </button>
+              </div>
             </form>
           </div>
         </div>
       )}
 
-      <header className="topbar">
-        <div className="brand-wrap">
-          <div className="brand-mark">A</div>
-          <div>
-            <p className="brand-name">AutoHub</p>
-            <span className="brand-tag">Buy. Sell. Drive.</span>
-          </div>
-        </div>
-
-        <nav className="main-nav" aria-label="Main navigation">
-          <a href="#marketplace">Marketplace</a>
-          <a href="#how-it-works">How it works</a>
-          <a href="#featured">Featured</a>
-          <a href="#pricing">Pricing</a>
-        </nav>
-
-        <div className="nav-actions">
-          {isLoggedIn ? (
-            <div className="user-badge">
-              <span className="user-avatar">A</span>
-              <span>Ash</span>
-            </div>
-          ) : (
-            <button type="button" className="ghost-btn" onClick={() => setIsLoginOpen(true)}>
-              Login
-            </button>
-          )}
-          <button type="button" className="primary-btn">Sell Now</button>
-        </div>
-      </header>
+      <AppHeader
+        isLoggedIn={isLoggedIn}
+        user={loggedInUser}
+        showUserMenu={showUserMenu}
+        onLoginClick={() => setIsLoginOpen(true)}
+        onToggleUserMenu={() => setShowUserMenu((prev) => !prev)}
+        onLogout={handleLogout}
+      />
 
       <main>
         <section className="hero-section">
@@ -227,8 +480,8 @@ function App() {
             </p>
 
             <div className="hero-actions">
-              <button type="button" className="primary-btn large">Explore vehicles</button>
-              <button type="button" className="secondary-btn large">List a vehicle</button>
+              <Link to="/vehicles/cars" className="primary-btn large">Explore vehicles</Link>
+              <Link to="/vehicles/cars" className="secondary-btn large">List a vehicle</Link>
             </div>
 
             <div className="trust-row">
@@ -273,15 +526,6 @@ function App() {
           </div>
         </section>
 
-        <section className="stats-section" aria-label="Marketplace performance">
-          {stats.map((stat) => (
-            <div className="stat-card" key={stat.label}>
-              <strong>{stat.value}</strong>
-              <span>{stat.label}</span>
-            </div>
-          ))}
-        </section>
-
         <section className="categories-section" id="marketplace">
           <div className="section-heading">
             <span className="eyebrow">Vehicle categories</span>
@@ -290,10 +534,10 @@ function App() {
 
           <div className="category-grid">
             {categories.map((category) => (
-              <div className="category-card" key={category.label}>
+              <Link to={`/vehicles/${category.slug}`} className="category-card" key={category.label}>
                 <span className="category-icon">{category.icon}</span>
                 <span>{category.label}</span>
-              </div>
+              </Link>
             ))}
           </div>
         </section>
@@ -304,7 +548,7 @@ function App() {
               <span className="eyebrow">Featured inventory</span>
               <h2>Popular vehicles buyers are checking now.</h2>
             </div>
-            <button type="button" className="secondary-btn">View all listings</button>
+            <Link to="/vehicles/cars" className="secondary-btn">View all listings</Link>
           </div>
 
           <div className="listing-grid">
@@ -322,7 +566,7 @@ function App() {
                     <strong>{listing.price}</strong>
                   </div>
                   <p className="listing-meta">{listing.meta}</p>
-                  <button type="button" className="primary-btn small">Details</button>
+                  <Link to="/vehicles/cars" className="primary-btn small">Details</Link>
                 </div>
               </article>
             ))}
@@ -352,8 +596,52 @@ function App() {
           <p className="brand-name footer-brand">AutoHub</p>
           <span className="brand-tag">Seller → AutoHub → Buyer</span>
         </div>
-        <button type="button" className="primary-btn">Start selling</button>
+        <Link to="/vehicles/cars" className="primary-btn">Start selling</Link>
       </footer>
+    </div>
+  )
+}
+
+function CategoryPage() {
+  const { category } = useParams()
+  const categoryInfo = categories.find((item) => item.slug === category) ?? {
+    label: 'Vehicles',
+    icon: '🚘',
+    slug: 'vehicles',
+  }
+  const items = vehicleCatalog[category] ?? []
+
+  return (
+    <div className="category-page-shell">
+      <AppHeader />
+
+      <main className="category-page-main">
+        <div className="category-page-top">
+          <h1>{categoryInfo.label}</h1>
+        </div>
+
+        {items.length === 0 ? (
+          <div className="empty-category-box">
+            <div className="empty-category-icon">{categoryInfo.icon}</div>
+            <h2>No {categoryInfo.label.toLowerCase()} listed yet</h2>
+            <p>Be the first one to post a {categoryInfo.label.toLowerCase()} in this category.</p>
+            <Link to="/" className="primary-btn">Back to home</Link>
+          </div>
+        ) : (
+          <div className="category-list-grid">
+            {items.map((item) => (
+              <article className="category-list-card" key={item.title}>
+                <div className="category-list-thumb">{categoryInfo.icon}</div>
+                <div>
+                  <h3>{item.title}</h3>
+                  <p>{item.meta}</p>
+                </div>
+                <strong>{item.price}</strong>
+              </article>
+            ))}
+          </div>
+        )}
+      </main>
     </div>
   )
 }
