@@ -15,30 +15,6 @@ const categories = [
   { icon: '🚘', label: 'More Vehicles', slug: 'more-vehicles' },
 ]
 
-const featuredListings = [
-  {
-    title: '2022 Toyota Camry',
-    type: 'Sedan',
-    price: '₹24,500',
-    meta: 'Hybrid • 28k km • Automatic',
-    tag: 'Certified',
-  },
-  {
-    title: '2021 Royal Enfield Classic 350',
-    type: 'Bike',
-    price: '₹1,85,000',
-    meta: 'Petrol • 14k km • Excellent',
-    tag: 'Popular',
-  },
-  {
-    title: '2023 Mahindra Bolero',
-    type: 'SUV',
-    price: '₹9,80,000',
-    meta: 'Diesel • 22k km • Verified',
-    tag: 'New Arrival',
-  },
-]
-
 const steps = [
   { number: '01', title: 'List your vehicle', text: 'Post your vehicle details in minutes and reach serious buyers.' },
   { number: '02', title: 'Get matched instantly', text: 'AutoHub connects you with verified buyers and sellers in your area.' },
@@ -62,6 +38,13 @@ function getStoredUser() {
   } catch {
     return null
   }
+}
+
+function formatPrice(value) {
+  if (value === null || value === undefined || value === '') return 'Price on request'
+  const numeric = Number(value)
+  if (Number.isNaN(numeric)) return value
+  return `₹${numeric.toLocaleString('en-IN')}`
 }
 
 function App() {
@@ -172,8 +155,11 @@ function HomePage() {
   const [errorMessage, setErrorMessage] = useState('')
   const [missingFields, setMissingFields] = useState([])
   const [storedListings, setStoredListings] = useState([])
+  const [selectedListing, setSelectedListing] = useState(null)
   const [pendingSell, setPendingSell] = useState(false)
   const navigate = useNavigate()
+  const latestListing = storedListings[0] ?? null
+  const latestListingImage = latestListing?.images?.[0] ? `${API_BASE_URL}${latestListing.images[0]}` : null
 
   useEffect(() => {
     document.body.style.overflow = isLoginOpen ? 'hidden' : ''
@@ -369,6 +355,26 @@ function HomePage() {
       .catch(() => setStoredListings([]))
   }, [])
 
+  const openListingModal = (listing) => {
+    if (!isLoggedIn) {
+      setSelectedListing({ ...listing, locked: true })
+      return
+    }
+
+    setSelectedListing({ ...listing, locked: false })
+  }
+
+  const closeListingModal = () => {
+    setSelectedListing(null)
+  }
+
+  const handleDetailsLogin = () => {
+    closeListingModal()
+    setPendingSell(false)
+    setFormMode('login')
+    setIsLoginOpen(true)
+  }
+
   return (
     <div className="app-shell">
       <div className="page-watermark" aria-hidden="true">DS AutoHub</div>
@@ -507,6 +513,61 @@ function HomePage() {
         onSellClick={handleSellClick}
       />
 
+      {selectedListing && (
+        <div className="modal-overlay" onClick={closeListingModal}>
+          <div className="listing-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-header">
+              <div className="auth-brand-row">
+                <div className="mini-brand">DS</div>
+                <span>AutoHub</span>
+              </div>
+              <button type="button" className="close-btn" onClick={closeListingModal} aria-label="Close listing details">×</button>
+            </div>
+
+            {selectedListing.locked ? (
+              <div className="listing-locked-state">
+                <p className="modal-kicker">Private details</p>
+                <h3>Please login to view details</h3>
+                <p>Sign in to see full photos, seller information, and complete vehicle details.</p>
+                <button type="button" className="primary-btn auth-submit" onClick={handleDetailsLogin}>Login</button>
+              </div>
+            ) : (
+              <>
+                <div className="listing-modal-gallery">
+                  {(selectedListing.images && selectedListing.images.length > 0)
+                    ? selectedListing.images.map((image, index) => (
+                        <img key={`${selectedListing.title}-${index}`} src={`${API_BASE_URL}${image}`} alt={`${selectedListing.title} ${index + 1}`} />
+                      ))
+                    : <div className="listing-placeholder">Vehicle photo</div>}
+                </div>
+
+                <div className="listing-modal-body">
+                  <div className="listing-header-row">
+                    <div>
+                      <p className="listing-type">{selectedListing.type}</p>
+                      <h3>{selectedListing.title}</h3>
+                    </div>
+                    <strong>{selectedListing.price}</strong>
+                  </div>
+
+                  <div className="listing-detail-grid">
+                    <div><span>Location</span><strong>{selectedListing.location || 'Not specified'}</strong></div>
+                    <div><span>Contact</span><strong>{selectedListing.contact || 'Not shared'}</strong></div>
+                    <div><span>Category</span><strong>{selectedListing.type || 'Vehicle'}</strong></div>
+                    <div><span>Seller</span><strong>{selectedListing.seller || 'Private seller'}</strong></div>
+                  </div>
+
+                  <div className="listing-description-block">
+                    <span>Description</span>
+                    <p>{selectedListing.description || 'No description provided for this vehicle yet.'}</p>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       <main>
         <section className="hero-section">
           <div className="hero-copy">
@@ -535,26 +596,55 @@ function HomePage() {
           </div>
 
           <div className="hero-visual" aria-label="Vehicle showcase">
-            <div className="hero-card main-card">
+            <div
+              className="hero-card main-card"
+              onClick={() => latestListing && openListingModal(latestListing)}
+              role={latestListing ? 'button' : undefined}
+              tabIndex={latestListing ? 0 : -1}
+              onKeyDown={(event) => {
+                if ((event.key === 'Enter' || event.key === ' ') && latestListing) {
+                  event.preventDefault()
+                  openListingModal(latestListing)
+                }
+              }}
+            >
               <div className="card-top">
                 <span className="dot green" />
                 <span className="dot" />
                 <span className="dot" />
               </div>
-              <div className="vehicle-illustration">
-                <div className="vehicle-body">
-                  <span className="window" />
-                  <span className="wheel left" />
-                  <span className="wheel right" />
-                </div>
-              </div>
-              <div className="vehicle-info">
-                <div>
-                  <p>Featured Deal</p>
-                  <strong>2024 Hyundai Creta</strong>
-                </div>
-                <span>₹17.9L</span>
-              </div>
+
+              {latestListing ? (
+                <>
+                  <div className="vehicle-illustration">
+                    {latestListingImage ? (
+                      <img className="hero-listing-photo" src={latestListingImage} alt={latestListing.title} />
+                    ) : (
+                      <div className="vehicle-placeholder">No listing photo</div>
+                    )}
+                  </div>
+                  <div className="vehicle-info">
+                    <div>
+                      <p>Featured Deal</p>
+                      <strong>{latestListing.title}</strong>
+                    </div>
+                    <span>{formatPrice(latestListing.price)}</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="vehicle-illustration">
+                    <div className="vehicle-placeholder">No listings yet</div>
+                  </div>
+                  <div className="vehicle-info">
+                    <div>
+                      <p>Featured Deal</p>
+                      <strong>No vehicle listed</strong>
+                    </div>
+                    <span>Be the first</span>
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="floating-badge">
@@ -590,11 +680,23 @@ function HomePage() {
           </div>
 
           <div className="listing-grid">
-            {[...storedListings, ...featuredListings].map((listing) => (
-              <article className="listing-card" key={listing.title}>
+            {storedListings.map((listing) => (
+              <article
+                className="listing-card"
+                key={`${listing.title}-${listing.location || 'default'}`}
+                onClick={() => openListingModal(listing)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault()
+                    openListingModal(listing)
+                  }
+                }}
+              >
                 <div className="listing-image">
                   {listing.images?.[0] && <img src={`${API_BASE_URL}${listing.images[0]}`} alt={listing.title} />}
-                  <span className="listing-badge">{listing.tag}</span>
+                  <span className="listing-badge">{listing.tag || 'Featured'}</span>
                 </div>
                 <div className="listing-body">
                   <div className="listing-header">
@@ -604,8 +706,17 @@ function HomePage() {
                     </div>
                     <strong>{listing.price}</strong>
                   </div>
-                  <p className="listing-meta">{listing.description || listing.meta || `${listing.location} • Contact seller for details`}</p>
-                  <Link to="/vehicles/cars" className="primary-btn small">Details</Link>
+                  <p className="listing-meta">{listing.location || 'Location not specified'}</p>
+                  <button
+                    type="button"
+                    className="primary-btn small"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      openListingModal(listing)
+                    }}
+                  >
+                    Details
+                  </button>
                 </div>
               </article>
             ))}
@@ -646,6 +757,7 @@ function SellPage() {
   const storedUser = getStoredUser()
   const [formData, setFormData] = useState({ title: '', price: '', category: 'Cars', location: '', contact: '', description: '' })
   const [images, setImages] = useState([])
+  const [selectedFiles, setSelectedFiles] = useState([])
   const [errorMessage, setErrorMessage] = useState('')
 
   useEffect(() => {
@@ -662,11 +774,15 @@ function SellPage() {
 
   const handleImageChange = (event) => {
     const files = Array.from(event.target.files || [])
+    setSelectedFiles(files)
+
     Promise.all(files.map((file) => new Promise((resolve) => {
       const reader = new FileReader()
       reader.onload = () => resolve(reader.result)
       reader.readAsDataURL(file)
-    }))).then(setImages)
+    }))).then((imageUrls) => {
+      setImages(imageUrls)
+    })
   }
 
   const handleSubmit = async (event) => {
@@ -682,8 +798,7 @@ function SellPage() {
     payload.append('seller_id', storedUser.id)
     Object.entries(formData).forEach(([key, value]) => payload.append(key, value))
 
-    const imageFiles = Array.from(event.target.elements.photos?.files || [])
-    imageFiles.forEach((file) => payload.append('photos', file))
+    selectedFiles.forEach((file) => payload.append('photos', file))
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/listings`, { method: 'POST', body: payload })
@@ -707,9 +822,17 @@ function SellPage() {
         <form className="sell-form" onSubmit={handleSubmit}>
           {errorMessage && <p className="form-error">{errorMessage}</p>}
           <label className="photo-upload">
-            <span>Vehicle photo</span>
+            <span>Vehicle photos</span>
             <input name="photos" type="file" accept="image/*" multiple onChange={handleImageChange} />
-            {images.length > 0 ? <img src={images[0]} alt="Selected vehicle preview" /> : <strong>Choose vehicle photos</strong>}
+            {images.length > 0 ? (
+              <div className="photo-preview-grid">
+                {images.map((image, index) => (
+                  <img key={`${image}-${index}`} src={image} alt={`Selected vehicle preview ${index + 1}`} />
+                ))}
+              </div>
+            ) : (
+              <strong>Choose vehicle photos</strong>
+            )}
           </label>
           <div className="sell-form-grid">
             <label><span>Title</span><input name="title" value={formData.title} onChange={handleInputChange} placeholder="e.g. 2022 Hyundai Creta" /></label>

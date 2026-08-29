@@ -145,42 +145,7 @@ def get_listings():
             }
             for listing in saved_listings
         ]
-        return {
-        'listings': listings + [
-            {
-                'id': 1,
-                'title': '2022 Toyota Camry',
-                'type': 'Car',
-                'price': 24500,
-                'location': 'Bangalore',
-                'year': 2022,
-                'mileage': '28k km',
-                'fuel': 'Hybrid',
-                'condition': 'Certified',
-            },
-            {
-                'id': 2,
-                'title': '2021 Royal Enfield Classic 350',
-                'type': 'Bike',
-                'price': 185000,
-                'location': 'Hyderabad',
-                'year': 2021,
-                'mileage': '14k km',
-                'fuel': 'Petrol',
-                'condition': 'Excellent',
-            },
-            {
-                'id': 3,
-                'title': '2023 Mahindra Bolero',
-                'type': 'SUV',
-                'price': 980000,
-                'location': 'Pune',
-                'year': 2023,
-                'mileage': '22k km',
-                'fuel': 'Diesel',
-                'condition': 'Verified',
-            },
-        ]}
+        return {'listings': listings}
     finally:
         db.close()
 
