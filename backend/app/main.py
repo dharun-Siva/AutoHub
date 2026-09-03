@@ -58,6 +58,28 @@ class ListingPhoto(Base):
     path = Column(String(255), nullable=False)
 
 
+class Conversation(Base):
+    __tablename__ = 'conversations'
+
+    id = Column(Integer, primary_key=True, index=True)
+    buyer_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    seller_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    listing_id = Column(Integer, ForeignKey('listings.id'), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class Message(Base):
+    __tablename__ = 'messages'
+
+    id = Column(Integer, primary_key=True, index=True)
+    conversation_id = Column(Integer, ForeignKey('conversations.id', ondelete='CASCADE'), nullable=False)
+    sender_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    message_text = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    is_read = Column(Boolean, default=False)
+
+
 engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
@@ -135,17 +157,91 @@ def get_listings():
         listings = [
             {
                 'id': listing.id,
+                'seller_id': listing.seller_id,
                 'title': listing.title,
                 'type': listing.category,
                 'price': listing.price,
                 'location': listing.location,
                 'contact': listing.contact,
                 'description': listing.description,
+                'created_at': listing.created_at.isoformat() if listing.created_at else None,
                 'images': [f'/uploads/{photo.path}' for photo in db.query(ListingPhoto).filter(ListingPhoto.listing_id == listing.id).all()],
             }
             for listing in saved_listings
         ]
         return {'listings': listings}
+    finally:
+        db.close()
+
+
+@app.get('/api/listings/category/{category}')
+def get_listings_by_category(category: str):
+    db: Session = SessionLocal()
+    try:
+        category_mapping = {
+            'cars': 'Cars',
+            'bikes': 'Bikes',
+            'auto-rickshaws': 'Auto Rickshaws',
+            'vans': 'Vans',
+            'trucks': 'Trucks',
+            'buses': 'Buses',
+            'commercial': 'Commercial',
+            'more-vehicles': 'More Vehicles',
+        }
+        
+        category_name = category_mapping.get(category.lower(), category)
+        saved_listings = db.query(Listing).filter(Listing.category == category_name).order_by(Listing.created_at.desc()).all()
+        
+        listings = [
+            {
+                'id': listing.id,
+                'seller_id': listing.seller_id,
+                'title': listing.title,
+                'type': listing.category,
+                'price': listing.price,
+                'location': listing.location,
+                'contact': listing.contact,
+                'description': listing.description,
+                'created_at': listing.created_at.isoformat() if listing.created_at else None,
+                'images': [f'/uploads/{photo.path}' for photo in db.query(ListingPhoto).filter(ListingPhoto.listing_id == listing.id).all()],
+            }
+            for listing in saved_listings
+        ]
+        return {'listings': listings}
+    finally:
+        db.close()
+
+
+@app.get('/api/listings/user/{user_id}')
+def get_user_listings(user_id: int):
+    db: Session = SessionLocal()
+    try:
+        if not db.query(User).filter(User.id == user_id).first():
+            raise HTTPException(status_code=404, detail='User not found.')
+
+        saved_listings = db.query(Listing).filter(
+            Listing.seller_id == user_id
+        ).order_by(Listing.created_at.desc()).all()
+        listings = [
+            {
+                'id': listing.id,
+                'seller_id': listing.seller_id,
+                'title': listing.title,
+                'type': listing.category,
+                'price': listing.price,
+                'location': listing.location,
+                'contact': listing.contact,
+                'description': listing.description,
+                'created_at': listing.created_at.isoformat() if listing.created_at else None,
+                'images': [f'/uploads/{photo.path}' for photo in db.query(ListingPhoto).filter(ListingPhoto.listing_id == listing.id).all()],
+            }
+            for listing in saved_listings
+        ]
+        return {'listings': listings}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f'Error fetching user listings: {exc}') from exc
     finally:
         db.close()
 
@@ -275,5 +371,198 @@ def login(payload: LoginRequest):
         raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f'Login failed: {exc}') from exc
+    finally:
+        db.close()
+
+
+@app.get('/api/conversations/{user_id}')
+def get_conversations(user_id: int):
+    db: Session = SessionLocal()
+    try:
+        conversations = db.query(Conversation).filter(
+            (Conversation.buyer_id == user_id) | (Conversation.seller_id == user_id)
+        ).order_by(Conversation.updated_at.desc()).all()
+        
+        result = []
+        for conv in conversations:
+            listing = db.query(Listing).filter(Listing.id == conv.listing_id).first()
+            other_user_id = conv.seller_id if conv.buyer_id == user_id else conv.buyer_id
+            other_user = db.query(User).filter(User.id == other_user_id).first()
+            
+            last_message = db.query(Message).filter(Message.conversation_id == conv.id).order_by(Message.created_at.desc()).first()
+            unread_count = db.query(Message).filter(
+                Message.conversation_id == conv.id,
+                Message.sender_id != user_id,
+                Message.is_read.is_(False),
+            ).count()
+            
+            result.append({
+                'id': conv.id,
+                'buyer_id': conv.buyer_id,
+                'seller_id': conv.seller_id,
+                'listing_id': conv.listing_id,
+                'listing_title': listing.title if listing else 'Listing',
+                'other_user_id': other_user_id,
+                'other_user_name': other_user.name if other_user else 'Unknown',
+                'last_message': last_message.message_text if last_message else '',
+                'last_message_time': last_message.created_at.isoformat() if last_message else None,
+                'unread_count': unread_count,
+                'created_at': conv.created_at.isoformat(),
+            })
+        
+        return {
+            'conversations': result,
+            'unread_count': sum(conversation['unread_count'] for conversation in result),
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f'Error fetching conversations: {exc}') from exc
+    finally:
+        db.close()
+
+
+@app.get('/api/conversations/{conversation_id}/messages')
+def get_conversation_messages(conversation_id: int):
+    db: Session = SessionLocal()
+    try:
+        messages = db.query(Message).filter(Message.conversation_id == conversation_id).order_by(Message.created_at.asc()).all()
+        
+        result = [
+            {
+                'id': msg.id,
+                'sender_id': msg.sender_id,
+                'message_text': msg.message_text,
+                'created_at': msg.created_at.isoformat(),
+                'is_read': msg.is_read,
+            }
+            for msg in messages
+        ]
+        
+        return {'messages': result}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f'Error fetching messages: {exc}') from exc
+    finally:
+        db.close()
+
+
+@app.post('/api/conversations/{conversation_id}/read')
+def mark_conversation_read(conversation_id: int, user_id: int = Form(...)):
+    db: Session = SessionLocal()
+    try:
+        conversation = db.query(Conversation).filter(Conversation.id == conversation_id).first()
+        if not conversation:
+            raise HTTPException(status_code=404, detail='Conversation not found.')
+        if user_id not in [conversation.buyer_id, conversation.seller_id]:
+            raise HTTPException(status_code=403, detail='You are not part of this conversation.')
+
+        db.query(Message).filter(
+            Message.conversation_id == conversation_id,
+            Message.sender_id != user_id,
+            Message.is_read.is_(False),
+        ).update({Message.is_read: True}, synchronize_session=False)
+        db.commit()
+        return {'status': 'success'}
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f'Error marking conversation read: {exc}') from exc
+    finally:
+        db.close()
+
+
+@app.post('/api/conversations')
+def create_conversation(
+    buyer_id: int = Form(...),
+    seller_id: int = Form(...),
+    listing_id: int = Form(...),
+    message_text: str = Form(...),
+):
+    db: Session = SessionLocal()
+    try:
+        if buyer_id == seller_id:
+            raise HTTPException(status_code=400, detail='Cannot chat with yourself.')
+        
+        existing_conv = db.query(Conversation).filter(
+            Conversation.buyer_id == buyer_id,
+            Conversation.seller_id == seller_id,
+            Conversation.listing_id == listing_id,
+        ).first()
+        
+        if existing_conv:
+            conversation_id = existing_conv.id
+        else:
+            conversation = Conversation(
+                buyer_id=buyer_id,
+                seller_id=seller_id,
+                listing_id=listing_id,
+            )
+            db.add(conversation)
+            db.flush()
+            conversation_id = conversation.id
+        
+        message = Message(
+            conversation_id=conversation_id,
+            sender_id=buyer_id,
+            message_text=message_text.strip(),
+        )
+        db.add(message)
+        db.commit()
+        
+        return {
+            'status': 'success',
+            'conversation_id': conversation_id,
+            'message_id': message.id,
+        }
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f'Error creating conversation: {exc}') from exc
+    finally:
+        db.close()
+
+
+@app.post('/api/messages')
+def send_message(
+    conversation_id: int = Form(...),
+    sender_id: int = Form(...),
+    message_text: str = Form(...),
+):
+    db: Session = SessionLocal()
+    try:
+        conversation = db.query(Conversation).filter(Conversation.id == conversation_id).first()
+        if not conversation:
+            raise HTTPException(status_code=404, detail='Conversation not found.')
+        
+        if sender_id not in [conversation.buyer_id, conversation.seller_id]:
+            raise HTTPException(status_code=403, detail='You are not part of this conversation.')
+        
+        message = Message(
+            conversation_id=conversation_id,
+            sender_id=sender_id,
+            message_text=message_text.strip(),
+        )
+        db.add(message)
+        conversation.updated_at = datetime.utcnow()
+        db.commit()
+        db.refresh(message)
+        
+        return {
+            'status': 'success',
+            'message': {
+                'id': message.id,
+                'sender_id': message.sender_id,
+                'message_text': message.message_text,
+                'created_at': message.created_at.isoformat(),
+            },
+        }
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f'Error sending message: {exc}') from exc
     finally:
         db.close()

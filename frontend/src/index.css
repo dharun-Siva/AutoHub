@@ -4,8 +4,14 @@
   font-family: 'Inter', sans-serif;
   line-height: 1.5;
   font-weight: 400;
-  color: #0f172a;
-  background: #f8fafc;
+  --deep-obsidian: #1A1C1E;
+  --slate-mist: #F7F8FA;
+  --velocity-blue: #FF4500;
+  --velocity-blue-dark: #D93600;
+  --muted-ink: #5F6368;
+  --line: rgba(26, 28, 30, 0.1);
+  color: var(--deep-obsidian);
+  background: var(--slate-mist);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -24,7 +30,7 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background: linear-gradient(180deg, #f7f8fa 0%, #eef2f6 100%);
+  background: linear-gradient(180deg, #ffffff 0%, var(--slate-mist) 58%, #eceef0 100%);
 }
 
 img {
