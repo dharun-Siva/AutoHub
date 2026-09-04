@@ -402,6 +402,7 @@ function HomePage() {
   const [storedListings, setStoredListings] = useState([])
   const [selectedListing, setSelectedListing] = useState(null)
   const [pendingSell, setPendingSell] = useState(false)
+  const [pendingVehiclePath, setPendingVehiclePath] = useState(null)
   const navigate = useNavigate()
   const latestListing = storedListings[0] ?? null
   const latestListingImage = latestListing?.images?.[0] ? `${API_BASE_URL}${latestListing.images[0]}` : null
@@ -553,6 +554,10 @@ function HomePage() {
       if (pendingSell) {
         setPendingSell(false)
         navigate('/sell')
+      } else if (pendingVehiclePath) {
+        const destination = pendingVehiclePath
+        setPendingVehiclePath(null)
+        navigate(destination)
       }
       setFormData({
         name: '',
@@ -592,6 +597,19 @@ function HomePage() {
     setFormMode('login')
     setIsLoginOpen(true)
   }
+
+  const handleVehicleNavigation = (path) => {
+    if (isLoggedIn) {
+      navigate(path)
+      return
+    }
+
+    setPendingVehiclePath(path)
+    setFormMode('login')
+    setIsLoginOpen(true)
+  }
+
+  const handleExploreClick = () => handleVehicleNavigation('/vehicles/all')
 
   useEffect(() => {
     fetch(`${API_BASE_URL}/api/listings`)
@@ -842,21 +860,15 @@ function HomePage() {
               the smarter way to move inventory from seller to buyer.
             </p>
 
+            <p className="direct-owner-note">
+              <strong>Buy directly from vehicle owners.</strong> No middlemen, hidden markups, or commission.
+            </p>
+
             <div className="hero-actions">
-              <Link to="/vehicles/all" className="primary-btn large">Explore vehicles</Link>
+              <button type="button" className="primary-btn large" onClick={handleExploreClick}>Explore vehicles</button>
               <Link to="/vehicles/cars" className="secondary-btn large">List a vehicle</Link>
             </div>
 
-            <div className="trust-row">
-              <div>
-                <strong>10k+</strong>
-                <span>Happy buyers</span>
-              </div>
-              <div>
-                <strong>98%</strong>
-                <span>Deal success</span>
-              </div>
-            </div>
           </div>
 
           <div className="hero-visual" aria-label="Vehicle showcase">
@@ -924,10 +936,15 @@ function HomePage() {
 
           <div className="category-grid">
             {categories.map((category) => (
-              <Link to={`/vehicles/${category.slug}`} className="category-card" key={category.label}>
+              <button
+                type="button"
+                className="category-card"
+                key={category.label}
+                onClick={() => handleVehicleNavigation(`/vehicles/${category.slug}`)}
+              >
                 <span className="category-icon">{category.icon}</span>
                 <span>{category.label}</span>
-              </Link>
+              </button>
             ))}
           </div>
         </section>
@@ -984,15 +1001,16 @@ function HomePage() {
                 </div>
               </article>
             ))}
-            <Link
-              to="/vehicles/all"
+            <button
+              type="button"
               className="listing-next-arrow"
+              onClick={handleExploreClick}
               aria-label="View all vehicle listings"
               title="View all vehicle listings"
             >
               <span>Explore all vehicles</span>
               <strong aria-hidden="true">→</strong>
-            </Link>
+            </button>
           </div>
         </section>
 
@@ -1123,6 +1141,10 @@ function CategoryPage() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [loggedInUser, setLoggedInUser] = useState(null)
   const [selectedListing, setSelectedListing] = useState(null)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [minPrice, setMinPrice] = useState('')
+  const [maxPrice, setMaxPrice] = useState('')
+  const [locationQuery, setLocationQuery] = useState('')
 
   const categoryInfo = categories.find((item) => item.slug === category) ?? {
     label: category === 'all' ? 'All vehicles' : 'Vehicles',
@@ -1131,6 +1153,11 @@ function CategoryPage() {
   }
 
   useEffect(() => {
+    setSearchTerm('')
+    setMinPrice('')
+    setMaxPrice('')
+    setLocationQuery('')
+
     const storedUser = getStoredUser()
     if (storedUser) {
       setIsLoggedIn(true)
@@ -1167,6 +1194,30 @@ function CategoryPage() {
 
   const handleDetailsLogin = () => {
     navigate('/', { replace: true })
+  }
+
+  const filteredListings = listings.filter((listing) => {
+    const normalizedSearch = searchTerm.trim().toLowerCase()
+    const normalizedLocation = locationQuery.trim().toLowerCase()
+    const listingPrice = Number(listing.price)
+    const minimum = minPrice === '' ? null : Number(minPrice)
+    const maximum = maxPrice === '' ? null : Number(maxPrice)
+
+    const matchesSearch = !normalizedSearch || [listing.title, listing.type].some((value) => (
+      String(value || '').toLowerCase().includes(normalizedSearch)
+    ))
+    const matchesLocation = !normalizedLocation || String(listing.location || '').toLowerCase().includes(normalizedLocation)
+    const matchesMinimum = minimum === null || (!Number.isNaN(listingPrice) && listingPrice >= minimum)
+    const matchesMaximum = maximum === null || (!Number.isNaN(listingPrice) && listingPrice <= maximum)
+
+    return matchesSearch && matchesLocation && matchesMinimum && matchesMaximum
+  })
+
+  const clearFilters = () => {
+    setSearchTerm('')
+    setMinPrice('')
+    setMaxPrice('')
+    setLocationQuery('')
   }
 
   return (
@@ -1258,35 +1309,45 @@ function CategoryPage() {
 
       <main className="category-page-main">
         <div className="category-page-top">
-          <button
-            type="button"
-            onClick={() => navigate('/')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '8px 16px',
-              marginBottom: '20px',
-              backgroundColor: 'transparent',
-              border: '1px solid #ddd',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              fontSize: '0.95rem',
-              color: '#333',
-              fontWeight: '500',
-              transition: 'all 0.2s ease',
-            }}
-            onMouseEnter={(e) => {
-              e.target.style.backgroundColor = '#f5f5f5'
-              e.target.style.borderColor = '#999'
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.backgroundColor = 'transparent'
-              e.target.style.borderColor = '#ddd'
-            }}
-          >
-            ← Back to Home
-          </button>
+          <div className="category-toolbar-row">
+            <button type="button" className="category-back-button" onClick={() => navigate('/')} aria-label="Back to Home">
+              <span aria-hidden="true">←</span>
+            </button>
+            <section className="vehicle-filters" aria-label="Filter vehicles">
+              <div className="vehicle-search-field">
+                <label htmlFor="vehicle-search">Search vehicles</label>
+                <input
+                  id="vehicle-search"
+                  type="search"
+                  value={searchTerm}
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                  placeholder="Search by vehicle name"
+                />
+              </div>
+              <div className="vehicle-filter-fields">
+                <label>
+                  <span>Minimum price</span>
+                  <input type="number" min="0" value={minPrice} onChange={(event) => setMinPrice(event.target.value)} placeholder="₹ Min" />
+                </label>
+                <label>
+                  <span>Maximum price</span>
+                  <input type="number" min="0" value={maxPrice} onChange={(event) => setMaxPrice(event.target.value)} placeholder="₹ Max" />
+                </label>
+                <label>
+                  <span>Location</span>
+                  <input type="search" value={locationQuery} onChange={(event) => setLocationQuery(event.target.value)} placeholder="Search location" />
+                </label>
+                <label>
+                  <span>Category</span>
+                  <select value={category} onChange={(event) => navigate(`/vehicles/${event.target.value}`)}>
+                    <option value="all">All categories</option>
+                    {categories.map((item) => <option key={item.slug} value={item.slug}>{item.label}</option>)}
+                  </select>
+                </label>
+                <button type="button" className="secondary-btn clear-filters-btn" onClick={clearFilters}>Clear filters</button>
+              </div>
+            </section>
+          </div>
           <h1>{categoryInfo.label}</h1>
         </div>
 
@@ -1297,9 +1358,16 @@ function CategoryPage() {
             <p>{category === 'all' ? 'Be the first one to post a vehicle on AutoHub.' : `Be the first one to post a ${categoryInfo.label.toLowerCase()} in this category.`}</p>
             <Link to="/" className="primary-btn">Back to home</Link>
           </div>
+        ) : filteredListings.length === 0 ? (
+          <div className="empty-category-box filtered-empty-state">
+            <div className="empty-category-icon">⌕</div>
+            <h2>No vehicles match your filters</h2>
+            <p>Try a different name, price range, or location.</p>
+            <button type="button" className="primary-btn" onClick={clearFilters}>Clear filters</button>
+          </div>
         ) : (
           <div className="listing-grid">
-            {listings.map((listing) => (
+            {filteredListings.map((listing) => (
               <article
                 className="listing-card"
                 key={`listing-${listing.id}`}
@@ -1361,6 +1429,8 @@ function ChatPage() {
   const [isLoggedIn, setIsLoggedIn] = useState(() => Boolean(getStoredUser()))
   const [conversations, setConversations] = useState([])
   const [selectedConversation, setSelectedConversation] = useState(null)
+  const [chatListing, setChatListing] = useState(null)
+  const [isChatListingModalOpen, setIsChatListingModalOpen] = useState(false)
   const [messages, setMessages] = useState([])
   const [messageInput, setMessageInput] = useState('')
   const [isLoading, setIsLoading] = useState(true)
@@ -1433,6 +1503,31 @@ function ChatPage() {
     const intervalId = window.setInterval(fetchMessages, 5000)
     return () => window.clearInterval(intervalId)
   }, [selectedConversation, loggedInUser?.id])
+
+  useEffect(() => {
+    const selectedListingId = selectedConversation?.listing_id
+    if (!selectedListingId) {
+      setChatListing(null)
+      return undefined
+    }
+
+    let isMounted = true
+    fetch(`${API_BASE_URL}/api/listings`)
+      .then((response) => response.json())
+      .then((data) => {
+        if (isMounted) {
+          setChatListing((data.listings || []).find((listing) => listing.id === selectedListingId) || null)
+        }
+      })
+      .catch((error) => {
+        console.error('Error fetching chat listing:', error)
+        if (isMounted) setChatListing(null)
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [selectedConversation?.listing_id])
 
   const handleSendMessage = async () => {
     if (!messageInput.trim() || !selectedConversation) return
@@ -1575,13 +1670,37 @@ function ChatPage() {
                   <button
                     type="button"
                     className="chat-back-button"
-                    onClick={() => navigate('/vehicles/cars')}
+                    onClick={() => {
+                      setSelectedConversation(null)
+                      setMessages([])
+                      navigate('/chat')
+                    }}
                   >
                     ←
                   </button>
-                  <div>
+                  <div className="chat-header-content">
                     <h3>{selectedConversation.other_user_name}</h3>
-                    <p style={{ fontSize: '0.85rem', color: '#666' }}>{selectedConversation.listing_title}</p>
+                    {chatListing ? (
+                      <button
+                        type="button"
+                        className="chat-listing-card"
+                        onClick={() => setIsChatListingModalOpen(true)}
+                        aria-label={`View details for ${chatListing.title}`}
+                      >
+                        {chatListing.images?.[0] ? (
+                          <img src={`${API_BASE_URL}${chatListing.images[0]}`} alt="" />
+                        ) : (
+                          <div className="chat-listing-placeholder">🚘</div>
+                        )}
+                        <span>
+                          <strong>{chatListing.title}</strong>
+                          <small>{formatPrice(chatListing.price)} · View vehicle details</small>
+                        </span>
+                        <b aria-hidden="true">→</b>
+                      </button>
+                    ) : (
+                      <p>{selectedConversation.listing_title || 'Listing unavailable'}</p>
+                    )}
                   </div>
                 </div>
 
@@ -1653,6 +1772,47 @@ function ChatPage() {
           </div>
         </div>
       </main>
+
+      {isChatListingModalOpen && chatListing && (
+        <div className="modal-overlay" onClick={() => setIsChatListingModalOpen(false)}>
+          <div className="listing-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-header">
+              <div className="auth-brand-row">
+                <div className="mini-brand">DS</div>
+                <span>AutoHub</span>
+              </div>
+              <button type="button" className="close-btn" onClick={() => setIsChatListingModalOpen(false)} aria-label="Close listing details">×</button>
+            </div>
+
+            <div className="listing-modal-gallery">
+              {chatListing.images?.length > 0
+                ? chatListing.images.map((image, index) => (
+                    <img key={`${chatListing.title}-${index}`} src={`${API_BASE_URL}${image}`} alt={`${chatListing.title} ${index + 1}`} />
+                  ))
+                : <div className="listing-placeholder">Vehicle photo</div>}
+            </div>
+            <div className="listing-modal-body">
+              <div className="listing-header-row">
+                <div>
+                  <p className="listing-type">{chatListing.type}</p>
+                  <h3>{chatListing.title}</h3>
+                </div>
+                <strong>{formatPrice(chatListing.price)}</strong>
+              </div>
+              <div className="listing-detail-grid">
+                <div><span>Location</span><strong>{chatListing.location || 'Not specified'}</strong></div>
+                <div><span>Contact</span><strong>{chatListing.contact || 'Not shared'}</strong></div>
+                <div><span>Category</span><strong>{chatListing.type || 'Vehicle'}</strong></div>
+                <div><span>Posted on</span><strong>{formatPostDate(chatListing.created_at)}</strong></div>
+              </div>
+              <div className="listing-description-block">
+                <span>Description</span>
+                <p>{chatListing.description || 'No description provided for this vehicle yet.'}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

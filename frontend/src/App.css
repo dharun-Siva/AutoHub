@@ -422,6 +422,27 @@ button:hover {
   line-height: 1.7;
 }
 
+.hero-copy .direct-owner-note {
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin: 24px 0 30px;
+  padding: 14px 20px;
+  border: 1px solid rgba(255, 69, 0, 0.3);
+  border-radius: 999px;
+  background: #ffffff;
+  color: #334155;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.direct-owner-note strong {
+  color: var(--deep-obsidian);
+  font-weight: 850;
+}
+
 .badge,
 .eyebrow {
   display: inline-flex;
@@ -846,11 +867,118 @@ button:hover {
   text-align: center;
 }
 
+.category-toolbar-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  text-align: left;
+}
+
+.category-back-button {
+  display: grid;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  margin-top: 0;
+  padding: 0;
+  place-items: center;
+  border: 2px solid var(--velocity-blue);
+  border-radius: 50%;
+  background: var(--velocity-blue);
+  color: #ffffff;
+  font-size: 1.45rem;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: 0 8px 18px rgba(255, 69, 0, 0.28);
+}
+
+.category-back-button:hover {
+  border-color: var(--velocity-blue-dark);
+  background: var(--velocity-blue-dark);
+  box-shadow: 0 12px 24px rgba(255, 69, 0, 0.38);
+}
+
+.category-back-button:focus-visible {
+  border-color: var(--velocity-blue-dark);
+  outline: 3px solid rgba(255, 69, 0, 0.24);
+  outline-offset: 3px;
+}
+
+.category-toolbar-row .vehicle-filters {
+  width: auto;
+  flex: 1;
+  margin: 0;
+}
+
 .category-page-top h1 {
   margin: 12px 0 0;
   font-size: clamp(2.1rem, 3vw, 3.2rem);
   letter-spacing: -0.06em;
   color: #0f172a;
+}
+
+.vehicle-filters {
+  margin: 0 0 28px;
+  padding: 20px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.06);
+}
+
+.vehicle-search-field,
+.vehicle-filter-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.vehicle-search-field {
+  margin-bottom: 16px;
+}
+
+.vehicle-search-field label,
+.vehicle-filter-fields label span {
+  color: #334155;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.vehicle-search-field input,
+.vehicle-filter-fields input,
+.vehicle-filter-fields select {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 13px;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  border-radius: 10px;
+  background: #ffffff;
+  color: #0f172a;
+  font: inherit;
+}
+
+.vehicle-search-field input:focus,
+.vehicle-filter-fields input:focus,
+.vehicle-filter-fields select:focus {
+  border-color: var(--velocity-blue);
+  outline: 3px solid rgba(255, 69, 0, 0.12);
+}
+
+.vehicle-filter-fields {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+  align-items: end;
+  gap: 12px;
+}
+
+.clear-filters-btn {
+  min-height: 44px;
+  white-space: nowrap;
+}
+
+.filtered-empty-state {
+  margin-top: 18px;
 }
 
 .empty-category-box {
@@ -1326,6 +1454,18 @@ button:hover {
   .nav-actions {
     justify-content: center;
   }
+
+  .vehicle-filter-fields {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .clear-filters-btn {
+    grid-column: span 2;
+  }
+
+  .category-toolbar-row .vehicle-filters {
+    width: 100%;
+  }
 }
 
 @media (max-width: 640px) {
@@ -1350,6 +1490,18 @@ button:hover {
   .listing-grid,
   .steps-grid {
     grid-template-columns: 1fr;
+  }
+
+  .vehicle-filters {
+    padding: 16px;
+  }
+
+  .vehicle-filter-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .clear-filters-btn {
+    grid-column: auto;
   }
 
   .site-footer {
@@ -1785,6 +1937,76 @@ body {
   margin: 0;
   color: #64748b;
   font-size: 0.85rem;
+}
+
+.chat-header-content {
+  min-width: 0;
+}
+
+.chat-listing-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(420px, 100%);
+  margin-top: 8px;
+  padding: 7px 10px 7px 7px;
+  border: 1px solid rgba(255, 69, 0, 0.2);
+  border-radius: 10px;
+  background: #fff8f5;
+  color: var(--deep-obsidian);
+  text-align: left;
+}
+
+.chat-listing-card:hover,
+.chat-listing-card:focus-visible {
+  border-color: var(--velocity-blue);
+  box-shadow: 0 8px 18px rgba(255, 69, 0, 0.12);
+  outline: none;
+}
+
+.chat-listing-card img,
+.chat-listing-placeholder {
+  width: 54px;
+  height: 42px;
+  flex: 0 0 54px;
+  border-radius: 7px;
+  object-fit: cover;
+}
+
+.chat-listing-placeholder {
+  display: grid;
+  place-items: center;
+  background: #ffe8df;
+  font-size: 1.3rem;
+}
+
+.chat-listing-card span {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.chat-listing-card strong,
+.chat-listing-card small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-listing-card strong {
+  font-size: 0.95rem;
+}
+
+.chat-listing-card small {
+  color: #64748b;
+  font-size: 0.72rem;
+}
+
+.chat-listing-card b {
+  color: var(--velocity-blue);
+  font-size: 1.3rem;
 }
 
 .messages-container {
